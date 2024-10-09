@@ -1,0 +1,14 @@
+{
+    "list": [
+        {
+            "name": "fy-gemini",
+            "version": "1.0.0",
+            "section": "daily",
+            "maintainer": "moremorefun",
+            "size": "2.966 kb",
+            "supported": true,
+            "des_short": "基于Gemini的插件",
+            "des": "基于Gemini的插件"
+        }
+    ]
+}
