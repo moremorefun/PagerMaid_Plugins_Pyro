@@ -9,6 +9,16 @@
             "supported": true,
             "des_short": "一大堆便民功能。",
             "des": "超多功能 例如 ,ip"
+        },
+        {
+            "name": "mf-help-gemini",
+            "version": "1.051",
+            "section": "daily",
+            "maintainer": "morefun",
+            "size": "2.966 kb",
+            "supported": true,
+            "des_short": "gemini问答",
+            "des": "ggemini问答"
         }
     ]
 }
