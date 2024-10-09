@@ -2,13 +2,13 @@
     "list": [
         {
             "name": "fy-gemini",
-            "version": "1.0.0",
+            "version": "1.0",
             "section": "daily",
-            "maintainer": "moremorefun",
+            "maintainer": "morefun",
             "size": "2.966 kb",
             "supported": true,
-            "des_short": "基于Gemini的插件",
-            "des": "基于Gemini的插件"
+            "des_short": "一大堆便民功能。",
+            "des": "超多功能 例如 ,ip"
         }
     ]
 }
