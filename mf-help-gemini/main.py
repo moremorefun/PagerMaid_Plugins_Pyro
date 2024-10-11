@@ -62,7 +62,7 @@ async def process_gemini_request(message: Message, fetch_function, to_language=N
     await message.edit(new_text)
 
 
-async def fetch_answer(question: str) -> str:
+async def fetch_answer(question: str, to_language=None) -> str:
     payload = create_payload(question)
     return await fetch_gemini_response(payload)
 
