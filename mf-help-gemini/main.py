@@ -10,15 +10,6 @@ GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_MODEL = "gemini-1.5-flash"
 
 
-async def set_key(message: Message, key_type: str, description: str):
-    if not message.parameter or len(message.parameter) != 1:
-        return await message.edit(f"参数错误，请使用{message.command} <文本>来{description}")
-
-    value = message.parameter[0]
-    sqlite[key_type] = value
-    await message.edit(f"已{description}。")
-
-
 @listener(command="set-gemini-key", description="设置gemini的apikey", parameters="<文本>")
 async def gemini_set_key(message: Message):
     async with aiohttp.ClientSession() as session:
@@ -38,13 +29,6 @@ async def set_fy_to(message: Message):
     await set_key(message, "fy_to", "设置翻译的目标语言")
 
 
-async def process_gemini_request(message: Message, fetch_function):
-    question = message.arguments
-    answer = await fetch_function(question)
-    new_text = f"{question}\n<blockquote>{answer}</blockquote>"
-    await message.edit(new_text)
-
-
 @listener(command="aiqa", description="利用gemini回复提出的问题", parameters="<文本>")
 async def aiqa(message: Message):
     await process_gemini_request(message, fetch_answer)
@@ -53,6 +37,22 @@ async def aiqa(message: Message):
 @listener(command="aify", description="利用gemini进行翻译", parameters="<文本>")
 async def aify(message: Message):
     await process_gemini_request(message, fetch_fy)
+
+
+async def set_key(message: Message, key_type: str, description: str):
+    if not message.parameter or len(message.parameter) != 1:
+        return await message.edit(f"参数错误，请使用{message.command} <文本>来{description}")
+
+    value = message.parameter[0]
+    sqlite[key_type] = value
+    await message.edit(f"已{description}。")
+
+
+async def process_gemini_request(message: Message, fetch_function):
+    question = message.arguments
+    answer = await fetch_function(question)
+    new_text = f"{question}\n<blockquote>{answer}</blockquote>"
+    await message.edit(new_text)
 
 
 async def fetch_gemini_response(payload):
