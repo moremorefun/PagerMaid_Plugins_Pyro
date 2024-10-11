@@ -11,8 +11,7 @@ GEMINI_MODEL = "gemini-1.5-flash"
 async def set_key(message: Message, key_type: str, description: str):
     if not message.parameter or len(message.parameter) != 1:
         return await message.edit(f"参数错误，请使用{message.command} <文本>来{description}")
-    value = message.parameter[0]
-    sqlite[key_type] = value
+    sqlite[key_type] = message.parameter[0]
     await message.edit(f"已{description}。")
 
 
@@ -24,7 +23,7 @@ async def fetch_gemini_response(payload):
     url = f"{GEMINI_API_BASE_URL}/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
     async with aiohttp.ClientSession() as session:
-        for _ in range(3):  # 最多重试3次
+        for _ in range(3):
             try:
                 async with session.post(url, json=payload) as response:
                     if response.status != 200:
@@ -55,20 +54,20 @@ def create_payload(question: str, system_instruction: str = None):
     return payload
 
 
-async def process_gemini_request(message: Message, fetch_function, to_language=None):
+async def process_gemini_request(message: Message, fetch_function, *args):
     question = message.arguments
-    answer = await fetch_function(question, to_language)
+    answer = await fetch_function(question, *args)
     new_text = f"{question}\n<blockquote>{answer}</blockquote>"
     await message.edit(new_text)
 
 
-async def fetch_answer(question: str, to_language=None) -> str:
+async def fetch_answer(question: str, *args) -> str:
     payload = create_payload(question)
     return await fetch_gemini_response(payload)
 
 
-async def fetch_fy(request_txt: str, to_language=None) -> str:
-    fy_to = to_language or sqlite.get("fy_to", "en")
+async def fetch_fy(request_txt: str, *args) -> str:
+    fy_to = args[0] if args else sqlite.get("fy_to", "en")
     system_instruction = f"You are a professional translation engine. \nPlease translate the text into {fy_to} without explanation."
     payload = create_payload(request_txt, system_instruction)
     return await fetch_gemini_response(payload)
