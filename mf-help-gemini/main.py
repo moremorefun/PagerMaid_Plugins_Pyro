@@ -1,7 +1,9 @@
 import aiohttp
+
 from pagermaid.enums import Message
 from pagermaid.listener import listener
 from pagermaid.services import sqlite
+from pagermaid.utils import logs
 
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_MODEL = "gemini-1.5-flash"
@@ -57,12 +59,12 @@ async def fetch_answer(question: str) -> str:
             try:
                 async with session.post(url, json=payload) as response:
                     if response.status != 200:
-                        print(f"请求失败：HTTP {response.status}")
+                        logs.error(f"请求失败：HTTP {response.status}")
                         continue
 
                     result = await response.json()
                     return result['candidates'][0]['content']['parts'][0]['text']
             except Exception as e:
-                print(f"请求失败：{e}")
+                logs.error(f"请求失败：{e}")
 
         return f'请求失败，响应内容：{await response.text()}'
