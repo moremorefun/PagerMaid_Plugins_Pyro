@@ -1,5 +1,4 @@
 import aiohttp
-from functools import partial
 
 from pagermaid.enums import Message
 from pagermaid.listener import listener
