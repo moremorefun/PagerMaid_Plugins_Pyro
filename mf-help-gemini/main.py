@@ -1,4 +1,5 @@
 import aiohttp
+from functools import partial
 
 from pagermaid.enums import Message
 from pagermaid.listener import listener
@@ -9,32 +10,39 @@ GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_MODEL = "gemini-1.5-flash"
 
 
+async def set_key(message: Message, key_type: str, description: str):
+    if not message.parameter or len(message.parameter) != 1:
+        return await message.edit(f"参数错误，请使用{message.command} <文本>来{description}")
+
+    value = message.parameter[0]
+    sqlite[key_type] = value
+    await message.edit(f"已{description}。")
+
+
 @listener(command="set-gemini-key", description="设置gemini的apikey", parameters="<文本>")
 async def gemini_set_key(message: Message):
-    if not message.parameter or len(message.parameter) != 1:
-        return await message.edit("参数错误，请使用set-gemini-key <文本>来设置Gemini API密钥。")
-
-    gemini_key = message.parameter[0]
     async with aiohttp.ClientSession() as session:
         try:
+            gemini_key = message.parameter[0]
             async with session.get(f"{GEMINI_API_BASE_URL}/models/{GEMINI_MODEL}?key={gemini_key}") as response:
                 if response.status != 200:
                     return await message.edit("Gemini API密钥无效。")
                 await response.json()
-                sqlite["gemini_key"] = gemini_key
-                await message.edit("已设置Gemini API密钥。")
+            await set_key(message, "gemini_key", "设置Gemini API密钥")
         except Exception as e:
             await message.edit(f"Gemini API密钥无效。{e}")
 
 
 @listener(command="set-fy-to", description="设置翻译目标语言", parameters="<文本>")
-async def gemini_set_key(message: Message):
-    if not message.parameter or len(message.parameter) != 1:
-        return await message.edit("参数错误，请使用set-fy-to <文本>来设翻译的目标语言")
+async def set_fy_to(message: Message):
+    await set_key(message, "fy_to", "设置翻译的目标语言")
 
-    arg = message.parameter[0]
-    sqlite["fy_to"] = arg
-    await message.edit("已设置翻译的目标语言。{arg}")
+
+async def process_gemini_request(message: Message, fetch_function):
+    question = message.arguments
+    answer = await fetch_function(question)
+    new_text = f"{question}\n<blockquote>{answer}</blockquote>"
+    await message.edit(new_text)
 
 
 @listener(command="aiqa", description="利用gemini回复提出的问题", parameters="<文本>")
@@ -45,13 +53,6 @@ async def aiqa(message: Message):
 @listener(command="aify", description="利用gemini进行翻译", parameters="<文本>")
 async def aify(message: Message):
     await process_gemini_request(message, fetch_fy)
-
-
-async def process_gemini_request(message: Message, fetch_function):
-    question = message.arguments
-    answer = await fetch_function(question)
-    new_text = f"{question}\n<blockquote>{answer}</blockquote>"
-    await message.edit(new_text)
 
 
 async def fetch_gemini_response(payload):
@@ -77,7 +78,7 @@ async def fetch_gemini_response(payload):
         return f'请求失败，响应内容：{await response.text()}'
 
 
-async def fetch_answer(question: str) -> str:
+def create_payload(question: str, system_instruction: str = None):
     payload = {
         "contents": [{"role": "user", "parts": [{"text": question}]}],
         "safetySettings": [
@@ -90,28 +91,18 @@ async def fetch_answer(question: str) -> str:
             ]
         ],
     }
+    if system_instruction:
+        payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+    return payload
+
+
+async def fetch_answer(question: str) -> str:
+    payload = create_payload(question)
     return await fetch_gemini_response(payload)
 
 
 async def fetch_fy(request_txt: str) -> str:
     fy_to = sqlite.get("fy_to", "en")
-    payload = {
-        "systemInstruction": {
-            "parts": [
-                {
-                    "text": f"You are a professional translation engine. \nPlease translate the text into {fy_to} without explanation."
-                }
-            ]
-        },
-        "contents": [{"role": "user", "parts": [{"text": request_txt}]}],
-        "safetySettings": [
-            {"category": category, "threshold": "BLOCK_NONE"}
-            for category in [
-                "HARM_CATEGORY_HARASSMENT",
-                "HARM_CATEGORY_HATE_SPEECH",
-                "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "HARM_CATEGORY_DANGEROUS_CONTENT",
-            ]
-        ],
-    }
+    system_instruction = f"You are a professional translation engine. \nPlease translate the text into {fy_to} without explanation."
+    payload = create_payload(request_txt, system_instruction)
     return await fetch_gemini_response(payload)
