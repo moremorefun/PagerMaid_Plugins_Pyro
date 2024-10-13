@@ -92,6 +92,25 @@ async def cmd_set_fy_to(message: Message):
     await set_key(message, "fy_to", "设置翻译的目标语言")
 
 
+@listener(command="set-fyit", description="控制独立翻译开关", parameters="<目标语言>")
+async def handle_fyit_command(message: Message):
+    chat_id = message.chat.id
+    arg_len = len(message.parameter)
+    key = f"fyit_{chat_id}"
+    action = 'None'
+    if arg_len == 0:
+        # 删除独立翻译
+        if sqlite.get(key):
+            del sqlite[key]
+        action = '删除'
+    else:
+        # 设置独立翻译
+        sqlite[key] = message.parameter
+        action = '设置'
+    await message.edit(f"{action} 此ID为 <code>{chat_id}</code> 的群/人独立翻译成功。")
+    await message.delay_delete()
+
+
 @listener(command="aiqa", description="利用gemini回复提出的问题", parameters="<文本>")
 async def cmd_aiqa(message: Message):
     await process_gemini_request(message, fetch_answer)
@@ -112,5 +131,16 @@ async def cmd_aify2cn(message: Message):
 async def cmd_global_translate(message: Message):
     if not message.text:
         return
+    prefixes = ["，", ",", "/", "-"]
+    if any(message.text.startswith(prefix) for prefix in prefixes):
+        return
 
     chat_id = message.chat.id
+    key = f"fyit_{chat_id}"
+    tos = sqlite.get(key)
+    if tos:
+        new_text = f"{message.text}"
+        for to in tos:
+            resp_txt = await fetch_fy(message.text, language_to=to)
+            new_text += f"\n<blockquote>{resp_txt}</blockquote>"
+        await message.edit(new_text)
