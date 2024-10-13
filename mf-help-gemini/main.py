@@ -118,6 +118,11 @@ async def cmd_aiqa(message: Message):
 
 @listener(command="aify", description="利用gemini进行翻译", parameters="<文本>")
 async def cmd_aify(message: Message):
+    if len(message.parameter) > 0:
+        to_language = message.parameter[0]
+        if to_language in ["zh", "en"]:
+            await process_gemini_request(message, fetch_fy, language_to=to_language)
+            return
     await process_gemini_request(message, fetch_fy)
 
 
