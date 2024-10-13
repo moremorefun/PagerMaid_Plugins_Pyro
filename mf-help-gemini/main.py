@@ -1,4 +1,7 @@
+from typing import Dict, Any
+
 import aiohttp
+
 from pagermaid.enums import Message
 from pagermaid.listener import listener
 from pagermaid.services import sqlite
@@ -8,14 +11,15 @@ GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_MODEL = "gemini-1.5-flash"
 
 
-async def set_key(message: Message, key_type: str, description: str):
+async def set_key(message: Message, key_type: str, description: str) -> None:
     if not message.parameter or len(message.parameter) != 1:
-        return await message.edit(f"参数错误，请使用{message.command} <文本>来{description}")
+        await message.edit(f"参数错误，请使用{message.command} <文本>来{description}")
+        return
     sqlite[key_type] = message.parameter[0]
     await message.edit(f"已{description}。")
 
 
-async def fetch_gemini_response(payload):
+async def fetch_gemini_response(payload: Dict[str, Any]) -> str:
     api_key = sqlite.get("gemini_key")
     if not api_key:
         return "请先设置API密钥。set-gemini-key"
@@ -36,7 +40,7 @@ async def fetch_gemini_response(payload):
         return f'请求失败，响应内容：{await response.text()}'
 
 
-def create_payload(question: str, system_instruction: str = None):
+def create_payload(question: str, system_instruction: str = None) -> Dict[str, Any]:
     payload = {
         "contents": [{"role": "user", "parts": [{"text": question}]}],
         "safetySettings": [
@@ -54,7 +58,7 @@ def create_payload(question: str, system_instruction: str = None):
     return payload
 
 
-async def process_gemini_request(message: Message, fetch_function, **args):
+async def process_gemini_request(message: Message, fetch_function, **args) -> None:
     question = message.arguments
     answer = await fetch_function(question, **args)
     new_text = f"{question}\n<blockquote>{answer}</blockquote>"
@@ -74,13 +78,14 @@ async def fetch_fy(request_txt: str, **args) -> str:
 
 
 @listener(command="set-gemini-key", description="设置gemini的apikey", parameters="<文本>")
-async def cmd_gemini_set_key(message: Message):
+async def cmd_gemini_set_key(message: Message) -> None:
     async with aiohttp.ClientSession() as session:
         try:
             gemini_key = message.parameter[0]
             async with session.get(f"{GEMINI_API_BASE_URL}/models/{GEMINI_MODEL}?key={gemini_key}") as response:
                 if response.status != 200:
-                    return await message.edit("Gemini API密钥无效。")
+                    await message.edit("Gemini API密钥无效。")
+                    return
                 await response.json()
             await set_key(message, "gemini_key", "设置Gemini API密钥")
         except Exception as e:
@@ -88,63 +93,55 @@ async def cmd_gemini_set_key(message: Message):
 
 
 @listener(command="set-fy-to", description="设置翻译目标语言", parameters="<文本>")
-async def cmd_set_fy_to(message: Message):
+async def cmd_set_fy_to(message: Message) -> None:
     await set_key(message, "fy_to", "设置翻译的目标语言")
 
 
 @listener(command="set-fyit", description="控制独立翻译开关", parameters="<目标语言>")
-async def handle_fyit_command(message: Message):
+async def handle_fyit_command(message: Message) -> None:
     chat_id = message.chat.id
     arg_len = len(message.parameter)
     key = f"fyit_{chat_id}"
-    action = 'None'
+    action = '删除' if arg_len == 0 else '设置'
+
     if arg_len == 0:
-        # 删除独立翻译
         if sqlite.get(key):
             del sqlite[key]
-        action = '删除'
     else:
-        # 设置独立翻译
         sqlite[key] = message.parameter
-        action = '设置'
+
     await message.edit(f"{action} 此ID为 <code>{chat_id}</code> 的群/人独立翻译成功。")
     await message.delay_delete()
 
 
 @listener(command="aiqa", description="利用gemini回复提出的问题", parameters="<文本>")
-async def cmd_aiqa(message: Message):
+async def cmd_aiqa(message: Message) -> None:
     await process_gemini_request(message, fetch_answer)
 
 
 @listener(command="aify", description="利用gemini进行翻译", parameters="<文本>")
-async def cmd_aify(message: Message):
-    if len(message.parameter) > 0:
-        to_language = message.parameter[0]
-        if to_language in ["zh", "en"]:
-            await process_gemini_request(message, fetch_fy, language_to=to_language)
-            return
-    await process_gemini_request(message, fetch_fy)
+async def cmd_aify(message: Message) -> None:
+    if len(message.parameter) > 0 and message.parameter[0] in ["zh", "en"]:
+        await process_gemini_request(message, fetch_fy, language_to=message.parameter[0])
+    else:
+        await process_gemini_request(message, fetch_fy)
 
 
 @listener(command="aify2cn", description="利用gemini进行翻译到中文", parameters="<文本>")
-async def cmd_aify2cn(message: Message):
+async def cmd_aify2cn(message: Message) -> None:
     await process_gemini_request(message, fetch_fy, language_to="zh")
 
 
-# 全局翻译监听器
 @listener(is_group=True, outgoing=True, ignore_edited=True)
-async def cmd_global_translate(message: Message):
-    if not message.text:
-        return
-    prefixes = ["，", ",", "/", "-"]
-    if any(message.text.startswith(prefix) for prefix in prefixes):
+async def cmd_global_translate(message: Message) -> None:
+    if not message.text or message.text[0] in ["，", ",", "/", "-"]:
         return
 
     chat_id = message.chat.id
     key = f"fyit_{chat_id}"
     tos = sqlite.get(key)
     if tos:
-        new_text = f"{message.text}"
+        new_text = message.text
         for to in tos:
             resp_txt = await fetch_fy(message.text, language_to=to)
             new_text += f"\n<blockquote>{resp_txt}</blockquote>"
