@@ -54,27 +54,27 @@ def create_payload(question: str, system_instruction: str = None):
     return payload
 
 
-async def process_gemini_request(message: Message, fetch_function, *args):
+async def process_gemini_request(message: Message, fetch_function, **args):
     question = message.arguments
-    answer = await fetch_function(question, *args)
+    answer = await fetch_function(question, **args)
     new_text = f"{question}\n<blockquote>{answer}</blockquote>"
     await message.edit(new_text)
 
 
-async def fetch_answer(question: str, *args) -> str:
+async def fetch_answer(question: str, **args) -> str:
     payload = create_payload(question)
     return await fetch_gemini_response(payload)
 
 
-async def fetch_fy(request_txt: str, *args) -> str:
-    fy_to = args[0] if args else sqlite.get("fy_to", "en")
+async def fetch_fy(request_txt: str, **args) -> str:
+    fy_to = args.get('language_to') or sqlite.get("fy_to", "en")
     system_instruction = f"You are a professional translation engine. \nPlease translate the text into {fy_to} without explanation."
     payload = create_payload(request_txt, system_instruction)
     return await fetch_gemini_response(payload)
 
 
 @listener(command="set-gemini-key", description="设置gemini的apikey", parameters="<文本>")
-async def gemini_set_key(message: Message):
+async def cmd_gemini_set_key(message: Message):
     async with aiohttp.ClientSession() as session:
         try:
             gemini_key = message.parameter[0]
@@ -88,20 +88,29 @@ async def gemini_set_key(message: Message):
 
 
 @listener(command="set-fy-to", description="设置翻译目标语言", parameters="<文本>")
-async def set_fy_to(message: Message):
+async def cmd_set_fy_to(message: Message):
     await set_key(message, "fy_to", "设置翻译的目标语言")
 
 
 @listener(command="aiqa", description="利用gemini回复提出的问题", parameters="<文本>")
-async def aiqa(message: Message):
+async def cmd_aiqa(message: Message):
     await process_gemini_request(message, fetch_answer)
 
 
 @listener(command="aify", description="利用gemini进行翻译", parameters="<文本>")
-async def aify(message: Message):
+async def cmd_aify(message: Message):
     await process_gemini_request(message, fetch_fy)
 
 
 @listener(command="aify2cn", description="利用gemini进行翻译到中文", parameters="<文本>")
-async def aify2cn(message: Message):
-    await process_gemini_request(message, fetch_fy, "zh")
+async def cmd_aify2cn(message: Message):
+    await process_gemini_request(message, fetch_fy, language_to="zh")
+
+
+# 全局翻译监听器
+@listener(is_group=True, outgoing=True, ignore_edited=True)
+async def cmd_global_translate(message: Message):
+    if not message.text:
+        return
+
+    chat_id = message.chat.id
