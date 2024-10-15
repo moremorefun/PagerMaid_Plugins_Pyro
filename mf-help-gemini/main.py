@@ -1,3 +1,5 @@
+# coding=utf-8
+
 from typing import Dict, Any
 
 import aiohttp
@@ -134,7 +136,13 @@ async def cmd_aify2cn(message: Message) -> None:
 
 @listener(is_group=True, outgoing=True, ignore_edited=True)
 async def cmd_global_translate(message: Message) -> None:
-    if not message.text or message.text[0] in ["，", ",", "/", "-"]:
+    try:
+        if not message.text:
+            message_text = message.text.decode('utf-8', 'ignore')
+            if message_text[0] in ["，", ",", "/", "-"]:
+                return
+    except Exception as e:
+        logs.error(f"Error occurred: {e}")
         return
 
     chat_id = message.chat.id
